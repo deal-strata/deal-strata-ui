@@ -1,0 +1,58 @@
+/* Custom styles for DocExtractor React App */
+body {
+  background-color: #f8f9fa;
+}
+
+.navbar-brand img {
+  height: 32px;
+  margin-right: 8px;
+}
+
+.content-wrapper {
+  padding: 40px;
+}
+
+footer {
+  text-align: center;
+  padding: 20px;
+  margin-top: 40px;
+  font-size: 0.9em;
+  color: #6c757d;
+}
+
+/* Ensure full height layout */
+#root {
+  min-height: 100vh;
+}
+
+/* Custom styling for collapsible sections */
+.collapse {
+  transition: all 0.3s ease;
+}
+
+/* Table styling improvements */
+.table th {
+  font-weight: 600;
+}
+
+.table-responsive {
+  border-radius: 0.5rem;
+}
+
+/* Button hover effects */
+.btn:hover {
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+/* File upload styling */
+.form-control:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Loading spinner */
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+}
