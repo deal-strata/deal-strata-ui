@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi } from '../services';
+// import { authApi } from '../services'; // Commented out for mock mode
 import type { User, SignupData, LoginResponse, SignupResponse } from '../services';
 
 interface AuthContextType {
@@ -25,72 +25,64 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
+// Mock user for testing - always logged in
+const MOCK_USER: User = {
+  id: 1,
+  email: 'test@example.com',
+  firstName: 'Test',
+  lastName: 'User',
+  name: 'Test User',
+  token: 'mock-token-12345',
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // For mock/testing: always return logged in user
+  const [user, setUser] = useState<User | null>(MOCK_USER);
+  const [isLoading, setIsLoading] = useState<boolean>(false); // No loading for mock
 
-  // Check for existing session on app load
+  // Mock auth check - immediately set user as logged in
   useEffect(() => {
-    const checkAuth = async (): Promise<void> => {
-      try {
-        const result = await authApi.getCurrentUser();
-        if (result.success && result.data) {
-          setUser(result.data);
-        }
-      } catch (error) {
-        console.error('Error checking authentication:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
+    setUser(MOCK_USER);
+    setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string): Promise<LoginResponse> => {
-    try {
-      const result = await authApi.login(email, password);
-      
-      if (result.success && result.data) {
-        setUser(result.data);
-        return { success: true, user: result.data };
-      } else {
-        return { success: false, error: result.error || 'Login failed' };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      return { success: false, error: errorMessage };
-    }
+  const login = async (email: string, _password: string): Promise<LoginResponse> => {
+    // Mock login - always succeeds
+    console.log('[MOCK] Login attempt:', email);
+    setUser(MOCK_USER);
+    return { 
+      success: true, 
+      user: MOCK_USER 
+    };
   };
 
   const signup = async (userData: SignupData): Promise<SignupResponse> => {
-    try {
-      const result = await authApi.signup({
-        email: userData.email,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        password: userData.password || ''
-      });
-      
-      if (result.success && result.data) {
-        setUser(result.data);
-        return { success: true, user: result.data };
-      } else {
-        return { success: false, error: result.error || 'Signup failed' };
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      return { success: false, error: errorMessage };
-    }
+    // Mock signup - always succeeds
+    console.log('[MOCK] Signup attempt:', userData);
+    const newUser: User = {
+      ...MOCK_USER,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      name: `${userData.firstName} ${userData.lastName}`,
+    };
+    setUser(newUser);
+    return { 
+      success: true, 
+      user: newUser 
+    };
   };
 
   const logout = (): void => {
-    authApi.logout();
-    setUser(null);
+    // Mock logout - but keep user logged in for testing
+    console.log('[MOCK] Logout called - user remains logged in for testing');
+    // Uncomment the line below to actually logout:
+    // setUser(null);
   };
 
   const isAuthenticated = (): boolean => {
-    return user !== null;
+    // For mock/testing: always return true
+    return true;
   };
 
   const value: AuthContextType = {

@@ -2,7 +2,9 @@
 export { apiService, ApiService } from './apiService';
 export { authApi, AuthApi } from './authApi';
 export { lapCalculationApi, LapCalculationApi } from './lapCalculationApi';
-export { documentsApi, DocumentsApi } from './documentsApi';
+export { documentsApi, DocumentsApi } from './DocumentsApi';
+export { agreementsService, AgreementsService } from './agreementsService';
+export { agreementApi, healthApi, updateAuthToken, getBasePath } from './clientConfig';
 
 // Re-export types from centralized types directory
 export type { ApiResponse, AuthUser, LoadingState } from '../types/api';
@@ -27,3 +29,25 @@ export type {
   DocumentStatus,
   WaterfallType,
 } from '../types/documents';
+
+// Re-export types from agreementsService
+export type {
+  CreateAgreementParams,
+  ListAgreementsParams,
+  GetAgreementParams,
+  UpdateAgreementParams,
+  DeleteAgreementParams,
+} from './agreementsService';
+
+// Re-export types from deal-strata-client
+export type {
+  Agreement,
+  AgreementList,
+  AgreementStatus,
+  AgreementApiCreateAgreementRequest,
+  AgreementApiListAgreementsRequest,
+  AgreementApiGetAgreementByIdRequest,
+  AgreementApiUpdateAgreementRequest,
+  AgreementApiDeleteAgreementRequest,
+  CreateAgreement202Response,
+} from 'deal-strata-client';

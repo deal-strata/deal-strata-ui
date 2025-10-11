@@ -6,8 +6,15 @@ import Upload from './components/upload/Upload';
 import Results from './components/results/Results';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
-import AllAgreements from './components/agreements/AllAgreements';
-import AgreementDetails from './components/agreements/AgreementDetails';
+import { 
+  AllAgreements, 
+  AgreementDetails, 
+  EditAgreement,
+  WaterfallDetails,
+  CreateWaterfall,
+  CalculationDetails,
+  CreateCalculation 
+} from './components/agreements';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './App.css'
@@ -43,6 +50,46 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <AgreementDetails />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/agreements/:id/edit" 
+            element={
+              <ProtectedRoute>
+                <EditAgreement />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/agreements/:id/waterfalls/:waterfallId" 
+            element={
+              <ProtectedRoute>
+                <WaterfallDetails />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/agreements/:id/waterfalls/new" 
+            element={
+              <ProtectedRoute>
+                <CreateWaterfall />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/agreements/:id/calculations/:calculationId" 
+            element={
+              <ProtectedRoute>
+                <CalculationDetails />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/agreements/:id/calculations/new" 
+            element={
+              <ProtectedRoute>
+                <CreateCalculation />
               </ProtectedRoute>
             } 
           />
