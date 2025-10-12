@@ -16,7 +16,7 @@ const getAuthToken = (): string => {
  * Base configuration for all API clients
  */
 const apiConfiguration = new Configuration({
-  basePath: 'http://localhost:4010',
+  basePath: 'https://atzhome.tail18537f.ts.net',
   accessToken: getAuthToken,
   baseOptions: {
     headers: {
