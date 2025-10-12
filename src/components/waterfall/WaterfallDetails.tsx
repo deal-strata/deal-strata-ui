@@ -27,7 +27,7 @@ const WaterfallDetails: React.FC = () => {
       setError(null);
 
       // Load the specific waterfall directly
-      const response = await agreementApi.agreementsIdWaterfallsWaterfallIdGet({
+      const response = await agreementApi.getWaterfallById({
         id: id!,
         waterfallId: waterfallId!
       });
