@@ -4,17 +4,21 @@ import Layout from '../layout/Layout';
 import { agreementApi } from '../../services/clientConfig';
 import {
   type AgreementApiGetAgreementByIdRequest,
+  type AgreementApiGetCalculationsRequest,
   type Agreement,
   type AgreementStatus,
   type AgreementParty,
   type AgreementCommitment,
+  type Calculation,
   SourceType,
 } from 'deal-strata-client';
 
 const AgreementDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [agreement, setAgreement] = useState<Agreement | null>(null);
+  const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingCalculations, setLoadingCalculations] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     details: true,
@@ -25,31 +29,10 @@ const AgreementDetails: React.FC = () => {
     metadata: true,
   });
 
-  // Mock data for calculations (will be replaced with API calls)
-  const mockCalculations = [
-    {
-      id: 'calc-1',
-      name: 'Q3 2024 Distribution',
-      waterfallId: 'waterfall-1',
-      waterfallName: 'Agreement Waterfall',
-      totalDistribution: 5000000,
-      createdAt: '2024-10-01T09:00:00Z',
-      status: 'completed' as const,
-    },
-    {
-      id: 'calc-2',
-      name: 'Q4 2024 Projection',
-      waterfallId: 'waterfall-1',
-      waterfallName: 'Agreement Waterfall',
-      totalDistribution: 7500000,
-      createdAt: '2024-10-10T14:30:00Z',
-      status: 'draft' as const,
-    },
-  ];
-
   useEffect(() => {
     if (id) {
       loadAgreement(id);
+      loadCalculations(id);
     }
   }, [id]);
 
@@ -89,6 +72,25 @@ const AgreementDetails: React.FC = () => {
       setError(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCalculations = async (agreementId: string) => {
+    try {
+      setLoadingCalculations(true);
+
+      const request: AgreementApiGetCalculationsRequest = {
+        id: agreementId,
+      };
+
+      const response = await agreementApi.getCalculations(request);
+      setCalculations(response.data);
+    } catch (err) {
+      console.error('Error loading calculations:', err);
+      // Don't set error state for calculations, just log it
+      // The main agreement data is more important
+    } finally {
+      setLoadingCalculations(false);
     }
   };
 
@@ -315,7 +317,7 @@ const AgreementDetails: React.FC = () => {
           >
             <h5 className="mb-0">
               <i className={`bi bi-chevron-${expandedSections.calculations ? 'down' : 'right'} me-2`}></i>
-              Calculations ({mockCalculations.length})
+              Calculations ({calculations.length})
             </h5>
           </button>
           {expandedSections.calculations && (
@@ -330,7 +332,14 @@ const AgreementDetails: React.FC = () => {
         </div>
         {expandedSections.calculations && (
           <div className="card-body p-0">
-            {mockCalculations.length === 0 ? (
+            {loadingCalculations ? (
+              <div className="p-4 text-center">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading calculations...</span>
+                </div>
+                <p className="mt-2 text-muted">Loading calculations...</p>
+              </div>
+            ) : calculations.length === 0 ? (
               <div className="p-4 text-center text-muted">
                 <i className="bi bi-calculator" style={{ fontSize: '2rem' }}></i>
                 <p className="mb-3">No calculations yet</p>
@@ -347,32 +356,35 @@ const AgreementDetails: React.FC = () => {
                 <table className="table table-hover mb-0">
                   <thead className="table-light">
                     <tr>
-                      <th>Calculation Name</th>
+                      <th>Calculation Date</th>
                       <th>Waterfall</th>
-                      <th className="text-end">Total Distribution</th>
                       <th>Created</th>
                       <th>Status</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mockCalculations.map((calc) => (
+                    {calculations.map((calc) => (
                       <tr key={calc.id} style={{ cursor: 'pointer' }}>
                         <td>
                           <Link
                             to={`/agreements/${agreement.id}/calculations/${calc.id}`}
                             className="text-decoration-none fw-medium"
                           >
-                            {calc.name}
+                            {formatDate(calc.calculationDate)}
                           </Link>
                         </td>
-                        <td className="text-muted small">{calc.waterfallName}</td>
-                        <td className="text-end fw-medium">
-                          {formatCurrency(calc.totalDistribution)}
+                        <td className="text-muted small">
+                          <code className="small">{calc.waterfallDefinitionId}</code>
                         </td>
                         <td className="text-muted small">{formatDate(calc.createdAt)}</td>
                         <td>
-                          <span className={`badge ${calc.status === 'completed' ? 'bg-success' : 'bg-secondary'}`}>
+                          <span className={`badge ${
+                            calc.status === 'Completed' ? 'bg-success' : 
+                            calc.status === 'InProgress' ? 'bg-primary' : 
+                            calc.status === 'Failed' ? 'bg-danger' : 
+                            'bg-secondary'
+                          }`}>
                             {calc.status}
                           </span>
                         </td>

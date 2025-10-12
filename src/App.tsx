@@ -10,13 +10,15 @@ import {
   AllAgreements,
   AgreementDetails,
   EditAgreement,
-  CalculationDetails,
-  CreateCalculation
 } from './components/agreements';
 import {
   WaterfallDetails,
-  CreateWaterfall,
 } from './components/waterfall';
+import {
+
+  CalculationDetails,
+  CreateCalculation
+} from './components/calculations'
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import './App.css'
