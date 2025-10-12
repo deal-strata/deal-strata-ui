@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '../layout/Layout';
 import { agreementApi } from '../../services/clientConfig';
-import type {
-  AgreementApiGetAgreementByIdRequest,
-  Agreement,
-  AgreementStatus,
-  AgreementParty,
-  AgreementCommitment,
+import {
+  type AgreementApiGetAgreementByIdRequest,
+  type Agreement,
+  type AgreementStatus,
+  type AgreementParty,
+  type AgreementCommitment,
+  SourceType,
 } from 'deal-strata-client';
 
 const AgreementDetails: React.FC = () => {
@@ -23,27 +24,6 @@ const AgreementDetails: React.FC = () => {
     commitments: true,
     metadata: true,
   });
-
-  // Mock data for waterfalls (will be replaced with API calls)
-  // Can have max 2 waterfalls: original from agreement + user-edited version
-  const mockWaterfalls = [
-    {
-      id: 'waterfall-1',
-      name: 'Original Agreement Waterfall',
-      type: 'agreement' as const,
-      description: 'Original waterfall from the uploaded agreement',
-      createdAt: '2024-10-11T14:30:00Z',
-      stepsCount: 5,
-    },
-    {
-      id: 'waterfall-2',
-      name: 'Modified Waterfall',
-      type: 'user-edited' as const,
-      description: 'User-modified waterfall configuration',
-      createdAt: '2024-10-15T10:20:00Z',
-      stepsCount: 4,
-    },
-  ];
 
   // Mock data for calculations (will be replaced with API calls)
   const mockCalculations = [
@@ -85,11 +65,11 @@ const AgreementDetails: React.FC = () => {
 
       const response = await agreementApi.getAgreementById(request);
       const data: Agreement = response.data;
-      
+
       setAgreement(data);
     } catch (err) {
       let errorMessage = 'Failed to load agreement';
-      
+
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosError = err as {
           response?: {
@@ -99,13 +79,13 @@ const AgreementDetails: React.FC = () => {
             };
           };
         };
-        errorMessage = axiosError.response?.data?.message 
-          || axiosError.response?.data?.error 
+        errorMessage = axiosError.response?.data?.message
+          || axiosError.response?.data?.error
           || errorMessage;
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -205,6 +185,61 @@ const AgreementDetails: React.FC = () => {
       </Layout>
     );
   }
+  
+  const displayedWaterfalls = agreement.waterfalls?.slice(0, 2);
+
+  const waterfallSection = (
+    <div className="card mb-4 shadow-sm">
+      <div className="card-header bg-white">
+        <button
+          className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+          onClick={() => toggleSection('waterfalls')}
+        >
+          <h5 className="mb-0">
+            <i className={`bi bi-chevron-${expandedSections.waterfalls ? 'down' : 'right'} me-2`}></i>
+            Waterfall Configuration
+          </h5>
+        </button>
+      </div>
+      {expandedSections.waterfalls && (
+        <div className="card-body">
+          <div className="row g-3">
+              {displayedWaterfalls?.map((waterfall) => (
+              <div key={waterfall.id} className="col-md-6">
+                <div className="card hover-shadow">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 className="card-title mb-0">{waterfall.name}</h6>
+                        <div className="d-flex align-items-center gap-2 mt-1">
+                          <span className={`badge ${waterfall.sourceDef === SourceType.Agreement ? 'bg-primary' : 'bg-success'}`}>
+                            {waterfall.sourceDef === SourceType.Agreement ? 'Original' : 'User Edited'}
+                          </span>
+                          <small className="text-muted">{waterfall.steps.length} steps</small>
+                        </div>
+                      </div>
+                      <div>
+                        <Link
+                          to={`/agreements/${agreement.id}/waterfalls/${waterfall.id}`}
+                          className="btn btn-sm btn-outline-primary"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-muted small">
+            <i className="bi bi-info-circle me-1"></i>
+            Waterfall configuration can be edited on the <Link to={`/agreements/${agreement.id}/edit`}>Edit Agreement</Link> page
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <Layout>
@@ -241,16 +276,16 @@ const AgreementDetails: React.FC = () => {
           </div>
         </div>
         <div className="d-flex gap-2">
-          <Link 
+          <Link
             to={`/agreements/${agreement.id}/edit`}
             className="btn btn-primary"
           >
             <i className="bi bi-pencil me-1"></i>
             Update Agreement
           </Link>
-          <a 
-            href={agreement.file.url} 
-            target="_blank" 
+          <a
+            href={agreement.file.url}
+            target="_blank"
             rel="noopener noreferrer"
             className="btn btn-outline-secondary"
           >
@@ -269,61 +304,7 @@ const AgreementDetails: React.FC = () => {
       )}
 
       {/* Waterfall Section */}
-      <div className="card mb-4 shadow-sm">
-        <div className="card-header bg-white">
-          <button
-            className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-            onClick={() => toggleSection('waterfalls')}
-          >
-            <h5 className="mb-0">
-              <i className={`bi bi-chevron-${expandedSections.waterfalls ? 'down' : 'right'} me-2`}></i>
-              Waterfall Configuration
-            </h5>
-          </button>
-        </div>
-        {expandedSections.waterfalls && (
-          <div className="card-body">
-            <p className="text-muted small mb-3">
-              Maximum 2 waterfalls: original from agreement and optional user-edited version
-            </p>
-            <div className="row g-3">
-              {mockWaterfalls.map((waterfall) => (
-                <div key={waterfall.id} className="col-md-6">
-                  <div className="card hover-shadow">
-                    <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                          <h6 className="card-title mb-0">{waterfall.name}</h6>
-                          <span className={`badge ${waterfall.type === 'agreement' ? 'bg-primary' : 'bg-success'} mt-1`}>
-                            {waterfall.type === 'agreement' ? 'Original' : 'User Edited'}
-                          </span>
-                        </div>
-                        <span className="badge bg-secondary">{waterfall.stepsCount} steps</span>
-                      </div>
-                      <p className="card-text text-muted small mb-3">{waterfall.description}</p>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <small className="text-muted">
-                          Created: {formatDate(waterfall.createdAt)}
-                        </small>
-                        <Link
-                          to={`/agreements/${agreement.id}/waterfalls/${waterfall.id}`}
-                          className="btn btn-sm btn-outline-primary"
-                        >
-                          View Details
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-muted small">
-              <i className="bi bi-info-circle me-1"></i>
-              Waterfall configuration can be edited on the <Link to={`/agreements/${agreement.id}/edit`}>Edit Agreement</Link> page
-            </div>
-          </div>
-        )}
-      </div>
+      {waterfallSection}
 
       {/* Calculations Section */}
       <div className="card mb-4 shadow-sm">
@@ -338,7 +319,7 @@ const AgreementDetails: React.FC = () => {
             </h5>
           </button>
           {expandedSections.calculations && (
-            <Link 
+            <Link
               to={`/agreements/${agreement.id}/calculations/new`}
               className="btn btn-sm btn-primary"
             >
@@ -353,7 +334,7 @@ const AgreementDetails: React.FC = () => {
               <div className="p-4 text-center text-muted">
                 <i className="bi bi-calculator" style={{ fontSize: '2rem' }}></i>
                 <p className="mb-3">No calculations yet</p>
-                <Link 
+                <Link
                   to={`/agreements/${agreement.id}/calculations/new`}
                   className="btn btn-primary"
                 >
@@ -378,7 +359,7 @@ const AgreementDetails: React.FC = () => {
                     {mockCalculations.map((calc) => (
                       <tr key={calc.id} style={{ cursor: 'pointer' }}>
                         <td>
-                          <Link 
+                          <Link
                             to={`/agreements/${agreement.id}/calculations/${calc.id}`}
                             className="text-decoration-none fw-medium"
                           >
@@ -396,7 +377,7 @@ const AgreementDetails: React.FC = () => {
                           </span>
                         </td>
                         <td className="text-end">
-                          <Link 
+                          <Link
                             to={`/agreements/${agreement.id}/calculations/${calc.id}`}
                             className="btn btn-sm btn-outline-primary"
                           >
