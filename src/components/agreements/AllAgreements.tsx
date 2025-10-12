@@ -1,73 +1,133 @@
+/**
+ * Example: Using deal-strata-client in AllAgreements Component
+ * 
+ * This example demonstrates:
+ * 1. Using explicit request objects
+ * 2. Proper type safety with response data
+ * 3. Filtering and pagination
+ * 4. Error handling
+ */
+
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../layout/Layout';
-import { documentsApi } from '../../services';
-import type { LPADocument } from '../../types';
+import { agreementApi } from '../../services/clientConfig';
+import type {
+  AgreementApiListAgreementsRequest,
+  AgreementList,
+  Agreement,
+  AgreementStatus,
+} from 'deal-strata-client';
 
 const AllAgreements: React.FC = () => {
-  const [documents, setDocuments] = useState<LPADocument[]>([]);
+  const [agreements, setAgreements] = useState<Agreement[]>([]);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(0);
+  const [statusFilter, setStatusFilter] = useState<AgreementStatus | ''>('');
+  const pageSize = 20;
+  
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadDocuments();
-  }, []);
+    loadAgreements();
+  }, [currentPage, statusFilter]);
 
-  const loadDocuments = async () => {
+  const loadAgreements = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const response = await documentsApi.getAllLPA();
+      // Create explicit request object with all parameters
+      const request: AgreementApiListAgreementsRequest = {
+        status: statusFilter || undefined,
+        limit: pageSize,
+        offset: currentPage * pageSize,
+      };
+
+      // Call API with typed request
+      const response = await agreementApi.listAgreements(request);
       
-      if (response.success && response.data) {
-        setDocuments(response.data);
-      } else {
-        setError(response.error || 'Failed to load documents');
-      }
+      // Type the response data explicitly
+      const data: AgreementList = response.data;
+      
+      setAgreements(data.agreements);
+      setTotal(data.total);
+      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      // Handle errors with proper type checking
+      let errorMessage = 'Failed to load agreements';
+      
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as {
+          response?: {
+            data?: {
+              message?: string;
+              error?: string;
+            };
+          };
+        };
+        errorMessage = axiosError.response?.data?.message 
+          || axiosError.response?.data?.error 
+          || errorMessage;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewDocument = (documentId: string) => {
-    // Navigate to agreement details page
-    navigate(`/agreements/${documentId}`);
+  const handleViewAgreement = (agreementId: string) => {
+    navigate(`/agreements/${agreementId}`);
   };
 
-  const getStatusBadgeClass = (status: LPADocument['status']): string => {
+  const handleStatusFilterChange = (status: AgreementStatus | '') => {
+    setStatusFilter(status);
+    setCurrentPage(0); // Reset to first page when filter changes
+  };
+
+  const getStatusBadgeClass = (status?: AgreementStatus): string => {
     switch (status) {
-      case 'completed':
+      case 'Completed':
         return 'badge bg-success';
-      case 'processing':
+      case 'Processing':
         return 'badge bg-warning text-dark';
-      case 'failed':
-        return 'badge bg-danger';
-      default:
+      case 'InWaterfall':
+        return 'badge bg-info';
+      case 'Started':
+        return 'badge bg-primary';
+      case 'Uploaded':
         return 'badge bg-secondary';
+      default:
+        return 'badge bg-light text-dark';
     }
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
+
+  const totalPages = Math.ceil(total / pageSize);
 
   if (loading) {
     return (
@@ -88,10 +148,10 @@ const AllAgreements: React.FC = () => {
     return (
       <Layout>
         <div className="alert alert-danger" role="alert">
-          <h4 className="alert-heading">Error Loading Documents</h4>
+          <h4 className="alert-heading">Error Loading Agreements</h4>
           <p>{error}</p>
           <hr />
-          <button className="btn btn-outline-danger" onClick={loadDocuments}>
+          <button className="btn btn-outline-danger" onClick={loadAgreements}>
             Try Again
           </button>
         </div>
@@ -102,139 +162,161 @@ const AllAgreements: React.FC = () => {
   return (
     <Layout>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">All LPA Documents</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/upload')}>
-          <i className="bi bi-plus-circle me-2"></i>
-          Upload New Document
-        </button>
+        <div>
+          <h2 className="mb-1">All Agreements</h2>
+          <p className="text-muted mb-0">
+            Showing {agreements.length} of {total} agreements
+          </p>
+        </div>
+        <Link to="/upload" className="btn btn-primary">
+          + Upload New Agreement
+        </Link>
       </div>
 
-      {documents.length === 0 ? (
-        <div className="text-center py-5">
-          <div className="mb-4">
-            <i className="bi bi-file-earmark-text" style={{ fontSize: '4rem', color: '#ccc' }}></i>
+      {/* Filters */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="row">
+            <div className="col-md-4">
+              <label className="form-label">Filter by Status:</label>
+              <select
+                className="form-select"
+                value={statusFilter}
+                onChange={(e) => handleStatusFilterChange(e.target.value as AgreementStatus | '')}
+              >
+                <option value="">All Statuses</option>
+                <option value="Uploaded">Uploaded</option>
+                <option value="Processing">Processing</option>
+                <option value="NotStarted">Not Started</option>
+                <option value="Started">Started</option>
+                <option value="InWaterfall">In Waterfall</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
           </div>
-          <h4 className="text-muted">No Documents Found</h4>
-          <p className="text-muted">Upload your first LPA document to get started</p>
-          <button className="btn btn-primary mt-3" onClick={() => navigate('/upload')}>
-            Upload Document
-          </button>
+        </div>
+      </div>
+
+      {/* Agreements Table */}
+      {agreements.length === 0 ? (
+        <div className="card">
+          <div className="card-body text-center py-5">
+            <p className="text-muted mb-3">No agreements found.</p>
+            <Link to="/upload" className="btn btn-primary">
+              Upload Your First Agreement
+            </Link>
+          </div>
         </div>
       ) : (
         <>
-          <div className="mb-3 text-muted">
-            Showing {documents.length} document{documents.length !== 1 ? 's' : ''}
-          </div>
-
-          <div className="row g-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="col-12 col-md-6 col-lg-4">
-                <div className="card h-100 shadow-sm hover-shadow">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between align-items-start mb-3">
-                      <h5 className="card-title mb-0" style={{ fontSize: '1rem' }}>
-                        {doc.filename}
-                      </h5>
-                      <span className={getStatusBadgeClass(doc.status)}>
-                        {doc.status}
-                      </span>
-                    </div>
-
-                    <p className="text-muted small mb-3">
-                      <i className="bi bi-calendar me-1"></i>
-                      Uploaded: {formatDate(doc.uploadedAt)}
-                    </p>
-
-                    {doc.status === 'completed' && doc.WaterfallMetrics && (
-                      <div className="mb-3">
-                        <div className="row g-2">
-                          <div className="col-6">
-                            <div className="p-2 bg-light rounded">
-                              <small className="text-muted d-block">Total Distribution</small>
-                              <strong className="small">
-                                {formatCurrency(doc.WaterfallMetrics["Total Distribution"])}
-                              </strong>
-                            </div>
-                          </div>
-                          <div className="col-6">
-                            <div className="p-2 bg-light rounded">
-                              <small className="text-muted d-block">Waterfall Type</small>
-                              <strong className="small" style={{ fontSize: '0.75rem' }}>
-                                {doc.WaterfallMetrics["Distribution Type"]}
-                              </strong>
-                            </div>
-                          </div>
-                          <div className="col-6">
-                            <div className="p-2 bg-light rounded">
-                              <small className="text-muted d-block">Carried Interest</small>
-                              <strong className="small">
-                                {doc.WaterfallMetrics["Carried Interest"]}%
-                              </strong>
-                            </div>
-                          </div>
-                          <div className="col-6">
-                            <div className="p-2 bg-light rounded">
-                              <small className="text-muted d-block">Steps</small>
-                              <strong className="small">
-                                {doc.WaterfallMetrics["Number of Steps"]}
-                              </strong>
-                            </div>
-                          </div>
+          <div className="card">
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>File</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th>Parties</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agreements.map((agreement: Agreement) => (
+                    <tr key={agreement.id}>
+                      <td>
+                        <strong>{agreement.title}</strong>
+                        {agreement.description && (
+                          <div className="text-muted small">{agreement.description}</div>
+                        )}
+                      </td>
+                      <td>
+                        <div>{agreement.file.name}</div>
+                        <div className="text-muted small">
+                          {formatFileSize(agreement.file.size)}
                         </div>
-                      </div>
-                    )}
-
-                    {doc.status === 'completed' && doc.WaterfallSummary && (
-                      <p className="card-text small text-muted mb-3" style={{ 
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden'
-                      }}>
-                        {doc.WaterfallSummary}
-                      </p>
-                    )}
-
-                    {doc.status === 'processing' && (
-                      <div className="alert alert-warning py-2 small mb-3">
-                        <i className="bi bi-hourglass-split me-2"></i>
-                        Document is being processed...
-                      </div>
-                    )}
-
-                    {doc.status === 'failed' && (
-                      <div className="alert alert-danger py-2 small mb-3">
-                        <i className="bi bi-exclamation-triangle me-2"></i>
-                        Processing failed
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="card-footer bg-white border-top-0">
-                    <button
-                      className="btn btn-outline-primary btn-sm w-100"
-                      onClick={() => handleViewDocument(doc.id)}
-                      disabled={doc.status !== 'completed'}
-                    >
-                      <i className="bi bi-eye me-1"></i>
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      </td>
+                      <td>
+                        <span className={getStatusBadgeClass(agreement.status)}>
+                          {agreement.status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="text-muted small">
+                        {formatDate(agreement.updatedAt)}
+                      </td>
+                      <td>
+                        {agreement.parties && agreement.parties.length > 0 ? (
+                          <span className="badge bg-light text-dark">
+                            {agreement.parties.length} {agreement.parties.length === 1 ? 'party' : 'parties'}
+                          </span>
+                        ) : (
+                          <span className="text-muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => handleViewAgreement(agreement.id)}
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="d-flex justify-content-between align-items-center mt-4">
+              <div className="text-muted">
+                Page {currentPage + 1} of {totalPages}
+              </div>
+              <nav>
+                <ul className="pagination mb-0">
+                  <li className={`page-item ${currentPage === 0 ? 'disabled' : ''}`}>
+                    <button
+                      className="page-link"
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 0}
+                    >
+                      Previous
+                    </button>
+                  </li>
+                  {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                    const pageNum = i;
+                    return (
+                      <li
+                        key={pageNum}
+                        className={`page-item ${currentPage === pageNum ? 'active' : ''}`}
+                      >
+                        <button
+                          className="page-link"
+                          onClick={() => setCurrentPage(pageNum)}
+                        >
+                          {pageNum + 1}
+                        </button>
+                      </li>
+                    );
+                  })}
+                  <li className={`page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''}`}>
+                    <button
+                      className="page-link"
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage >= totalPages - 1}
+                    >
+                      Next
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          )}
         </>
       )}
-
-      <style>{`
-        .hover-shadow {
-          transition: box-shadow 0.3s ease;
-        }
-        .hover-shadow:hover {
-          box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-        }
-      `}</style>
     </Layout>
   );
 };

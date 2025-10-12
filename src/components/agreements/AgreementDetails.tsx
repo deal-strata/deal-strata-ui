@@ -1,45 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import { useParams, Link } from 'react-router-dom';
 import Layout from '../layout/Layout';
-import { documentsApi } from '../../services';
-import type { LPADocument } from '../../types';
+import { agreementApi } from '../../services/clientConfig';
+import {
+  type AgreementApiGetAgreementByIdRequest,
+  type AgreementApiGetCalculationsRequest,
+  type Agreement,
+  type AgreementStatus,
+  type AgreementParty,
+  type AgreementCommitment,
+  type Calculation,
+  SourceType,
+} from 'deal-strata-client';
 
 const AgreementDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const [document, setDocument] = useState<LPADocument | null>(null);
+  const [agreement, setAgreement] = useState<Agreement | null>(null);
+  const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingCalculations, setLoadingCalculations] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
-    summary: true,
-    metrics: true,
-    steps: true,
+    details: true,
+    waterfalls: true,
+    calculations: true,
+    parties: true,
+    commitments: true,
+    metadata: true,
   });
 
   useEffect(() => {
     if (id) {
-      loadDocument(id);
+      loadAgreement(id);
+      loadCalculations(id);
     }
   }, [id]);
 
-  const loadDocument = async (documentId: string) => {
+  const loadAgreement = async (agreementId: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await documentsApi.getLPA(documentId);
+      // Create explicit request object
+      const request: AgreementApiGetAgreementByIdRequest = {
+        id: agreementId,
+      };
 
-      if (response.success && response.data) {
-        setDocument(response.data);
-      } else {
-        setError(response.error || 'Failed to load document');
-      }
+      const response = await agreementApi.getAgreementById(request);
+      const data: Agreement = response.data;
+
+      setAgreement(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      let errorMessage = 'Failed to load agreement';
+
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as {
+          response?: {
+            data?: {
+              message?: string;
+              error?: string;
+            };
+          };
+        };
+        errorMessage = axiosError.response?.data?.message
+          || axiosError.response?.data?.error
+          || errorMessage;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCalculations = async (agreementId: string) => {
+    try {
+      setLoadingCalculations(true);
+
+      const request: AgreementApiGetCalculationsRequest = {
+        id: agreementId,
+      };
+
+      const response = await agreementApi.getCalculations(request);
+      setCalculations(response.data);
+    } catch (err) {
+      console.error('Error loading calculations:', err);
+      // Don't set error state for calculations, just log it
+      // The main agreement data is more important
+    } finally {
+      setLoadingCalculations(false);
     }
   };
 
@@ -50,7 +101,8 @@ const AgreementDetails: React.FC = () => {
     }));
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -61,92 +113,44 @@ const AgreementDetails: React.FC = () => {
     });
   };
 
-  const formatCurrency = (amount: number): string => {
+  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  const formatPercentage = (value: number): string => {
-    return `${value.toFixed(2)}%`;
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const getStatusBadgeClass = (status: LPADocument['status']): string => {
+  const getStatusBadgeClass = (status?: AgreementStatus): string => {
     switch (status) {
-      case 'completed':
+      case 'Completed':
         return 'badge bg-success';
-      case 'processing':
+      case 'Processing':
         return 'badge bg-warning text-dark';
-      case 'failed':
-        return 'badge bg-danger';
+      case 'InWaterfall':
+        return 'badge bg-info';
+      case 'Started':
+        return 'badge bg-primary';
+      case 'Uploaded':
+        return 'badge bg-secondary';
+      case 'NotStarted':
+        return 'badge bg-light text-dark';
       default:
         return 'badge bg-secondary';
     }
   };
 
-  const exportToExcel = () => {
-    if (!document || !document.WaterfallSteps) return;
-
-    const workbook = XLSX.utils.book_new();
-
-    // Summary sheet
-    const summaryData = [
-      ['Document Information'],
-      ['Filename', document.filename],
-      ['Status', document.status],
-      ['Uploaded', formatDate(document.uploadedAt)],
-      document.processedAt ? ['Processed', formatDate(document.processedAt)] : [],
-      [],
-      ['Waterfall Metrics'],
-      document.WaterfallMetrics ? ['Total Distribution', document.WaterfallMetrics['Total Distribution']] : [],
-      document.WaterfallMetrics ? ['Number of Steps', document.WaterfallMetrics['Number of Steps']] : [],
-      document.WaterfallMetrics ? ['Distribution Type', document.WaterfallMetrics['Distribution Type']] : [],
-      document.WaterfallMetrics ? ['Management Fee', `${document.WaterfallMetrics['Management Fee']}%`] : [],
-      document.WaterfallMetrics ? ['Carried Interest', `${document.WaterfallMetrics['Carried Interest']}%`] : [],
-    ].filter(row => row.length > 0);
-
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-    // Waterfall steps sheet
-    const stepsData = document.WaterfallSteps.map(step => ({
-      'Step Number': step.StepNumber,
-      'Description': step.Description,
-      'Threshold': step.Threshold,
-      'LP Split (%)': step.Split.LPs,
-      'GP Split (%)': step.Split.GP,
-      'Amount Distributed': step['Amount Distributed'],
-    }));
-
-    const stepsSheet = XLSX.utils.json_to_sheet(stepsData);
-    XLSX.utils.book_append_sheet(workbook, stepsSheet, 'Waterfall Steps');
-
-    // Export
-    const fileName = `${document.filename.replace(/\.[^/.]+$/, '')}_Analysis.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-  };
-
-  const exportToCSV = () => {
-    if (!document || !document.WaterfallSteps) return;
-
-    const csvContent = [
-      ['Step Number', 'Description', 'Threshold', 'LP Split (%)', 'GP Split (%)', 'Amount Distributed'],
-      ...document.WaterfallSteps.map(step => [
-        step.StepNumber,
-        step.Description,
-        step.Threshold,
-        step.Split.LPs,
-        step.Split.GP,
-        step['Amount Distributed'],
-      ]),
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const fileName = `${document.filename.replace(/\.[^/.]+$/, '')}_Waterfall.csv`;
-    saveAs(blob, fileName);
+  const getRoleBadgeClass = (role: string): string => {
+    return role === 'LP' ? 'badge bg-info' : 'badge bg-success';
   };
 
   if (loading) {
@@ -164,15 +168,15 @@ const AgreementDetails: React.FC = () => {
     );
   }
 
-  if (error || !document) {
+  if (error || !agreement) {
     return (
       <Layout>
         <div className="alert alert-danger" role="alert">
-          <h4 className="alert-heading">Error Loading Document</h4>
-          <p>{error || 'Document not found'}</p>
+          <h4 className="alert-heading">Error Loading Agreement</h4>
+          <p>{error || 'Agreement not found'}</p>
           <hr />
           <div className="d-flex gap-2">
-            <button className="btn btn-outline-danger" onClick={() => id && loadDocument(id)}>
+            <button className="btn btn-outline-danger" onClick={() => id && loadAgreement(id)}>
               Try Again
             </button>
             <Link to="/agreements" className="btn btn-outline-secondary">
@@ -183,6 +187,61 @@ const AgreementDetails: React.FC = () => {
       </Layout>
     );
   }
+  
+  const displayedWaterfalls = agreement.waterfalls?.slice(0, 2);
+
+  const waterfallSection = (
+    <div className="card mb-4 shadow-sm">
+      <div className="card-header bg-white">
+        <button
+          className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+          onClick={() => toggleSection('waterfalls')}
+        >
+          <h5 className="mb-0">
+            <i className={`bi bi-chevron-${expandedSections.waterfalls ? 'down' : 'right'} me-2`}></i>
+            Waterfall Configuration
+          </h5>
+        </button>
+      </div>
+      {expandedSections.waterfalls && (
+        <div className="card-body">
+          <div className="row g-3">
+              {displayedWaterfalls?.map((waterfall) => (
+              <div key={waterfall.id} className="col-md-6">
+                <div className="card hover-shadow">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 className="card-title mb-0">{waterfall.name}</h6>
+                        <div className="d-flex align-items-center gap-2 mt-1">
+                          <span className={`badge ${waterfall.sourceDef === SourceType.Agreement ? 'bg-primary' : 'bg-success'}`}>
+                            {waterfall.sourceDef === SourceType.Agreement ? 'Original' : 'User Edited'}
+                          </span>
+                          <small className="text-muted">{waterfall.steps.length} steps</small>
+                        </div>
+                      </div>
+                      <div>
+                        <Link
+                          to={`/agreements/${agreement.id}/waterfalls/${waterfall.id}`}
+                          className="btn btn-sm btn-outline-primary"
+                        >
+                          View Details
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-muted small">
+            <i className="bi bi-info-circle me-1"></i>
+            Waterfall configuration can be edited on the <Link to={`/agreements/${agreement.id}/edit`}>Edit Agreement</Link> page
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <Layout>
@@ -193,7 +252,7 @@ const AgreementDetails: React.FC = () => {
             <Link to="/agreements">All Agreements</Link>
           </li>
           <li className="breadcrumb-item active" aria-current="page">
-            {document.filename}
+            {agreement.title}
           </li>
         </ol>
       </nav>
@@ -201,195 +260,367 @@ const AgreementDetails: React.FC = () => {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-start mb-4">
         <div>
-          <h2 className="mb-2">{document.filename}</h2>
-          <div className="d-flex gap-3 align-items-center">
-            <span className={getStatusBadgeClass(document.status)}>
-              {document.status.toUpperCase()}
+          <h2 className="mb-2">{agreement.title}</h2>
+          <div className="d-flex gap-3 align-items-center flex-wrap">
+            <span className={getStatusBadgeClass(agreement.status)}>
+              {agreement.status || 'Unknown'}
             </span>
             <span className="text-muted">
               <i className="bi bi-calendar me-1"></i>
-              Uploaded: {formatDate(document.uploadedAt)}
+              Updated: {formatDate(agreement.updatedAt)}
             </span>
-            {document.processedAt && (
+            {agreement.dealId && (
               <span className="text-muted">
-                <i className="bi bi-check-circle me-1"></i>
-                Processed: {formatDate(document.processedAt)}
+                <i className="bi bi-briefcase me-1"></i>
+                Deal: {agreement.dealId}
               </span>
             )}
           </div>
         </div>
         <div className="d-flex gap-2">
-          <button className="btn btn-outline-success" onClick={exportToExcel}>
-            <i className="bi bi-file-earmark-spreadsheet me-1"></i>
-            Export Excel
-          </button>
-          <button className="btn btn-outline-primary" onClick={exportToCSV}>
-            <i className="bi bi-filetype-csv me-1"></i>
-            Export CSV
-          </button>
+          <Link
+            to={`/agreements/${agreement.id}/edit`}
+            className="btn btn-primary"
+          >
+            <i className="bi bi-pencil me-1"></i>
+            Update Agreement
+          </Link>
+          <a
+            href={agreement.file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline-secondary"
+          >
+            <i className="bi bi-download me-1"></i>
+            Download File
+          </a>
         </div>
       </div>
 
-      {/* Processing Status */}
-      {document.status === 'processing' && (
+      {/* Processing Status Alerts */}
+      {agreement.status === 'Processing' && (
         <div className="alert alert-warning" role="alert">
           <i className="bi bi-hourglass-split me-2"></i>
-          This document is currently being processed. Results will be available once processing is complete.
+          This agreement is currently being processed. Full details will be available once processing is complete.
         </div>
       )}
 
-      {document.status === 'failed' && (
-        <div className="alert alert-danger" role="alert">
-          <i className="bi bi-exclamation-triangle me-2"></i>
-          Document processing failed. Please try uploading the document again.
-        </div>
-      )}
+      {/* Waterfall Section */}
+      {waterfallSection}
 
-      {/* Main Content - Only show if completed */}
-      {document.status === 'completed' && (
-        <>
-          {/* Waterfall Summary */}
-          <div className="card mb-4 shadow-sm">
-            <div className="card-header bg-white">
-              <button
-                className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-                onClick={() => toggleSection('summary')}
-              >
-                <h5 className="mb-0">
-                  <i className={`bi bi-chevron-${expandedSections.summary ? 'down' : 'right'} me-2`}></i>
-                  Waterfall Summary
-                </h5>
-              </button>
-            </div>
-            {expandedSections.summary && (
-              <div className="card-body">
-                <p className="mb-0">{document.WaterfallSummary}</p>
+      {/* Calculations Section */}
+      <div className="card mb-4 shadow-sm">
+        <div className="card-header bg-white d-flex justify-content-between align-items-center">
+          <button
+            className="btn btn-link text-decoration-none text-dark p-0"
+            onClick={() => toggleSection('calculations')}
+          >
+            <h5 className="mb-0">
+              <i className={`bi bi-chevron-${expandedSections.calculations ? 'down' : 'right'} me-2`}></i>
+              Calculations ({calculations.length})
+            </h5>
+          </button>
+          {expandedSections.calculations && (
+            <Link
+              to={`/agreements/${agreement.id}/calculations/new`}
+              className="btn btn-sm btn-primary"
+            >
+              <i className="bi bi-plus-circle me-1"></i>
+              Add Calculation
+            </Link>
+          )}
+        </div>
+        {expandedSections.calculations && (
+          <div className="card-body p-0">
+            {loadingCalculations ? (
+              <div className="p-4 text-center">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading calculations...</span>
+                </div>
+                <p className="mt-2 text-muted">Loading calculations...</p>
+              </div>
+            ) : calculations.length === 0 ? (
+              <div className="p-4 text-center text-muted">
+                <i className="bi bi-calculator" style={{ fontSize: '2rem' }}></i>
+                <p className="mb-3">No calculations yet</p>
+                <Link
+                  to={`/agreements/${agreement.id}/calculations/new`}
+                  className="btn btn-primary"
+                >
+                  <i className="bi bi-plus-circle me-1"></i>
+                  Create First Calculation
+                </Link>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Calculation Date</th>
+                      <th>Waterfall</th>
+                      <th>Created</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calculations.map((calc) => (
+                      <tr key={calc.id} style={{ cursor: 'pointer' }}>
+                        <td>
+                          <Link
+                            to={`/agreements/${agreement.id}/calculations/${calc.id}`}
+                            className="text-decoration-none fw-medium"
+                          >
+                            {formatDate(calc.calculationDate)}
+                          </Link>
+                        </td>
+                        <td className="text-muted small">
+                          <code className="small">{calc.waterfallDefinitionId}</code>
+                        </td>
+                        <td className="text-muted small">{formatDate(calc.createdAt)}</td>
+                        <td>
+                          <span className={`badge ${
+                            calc.status === 'Completed' ? 'bg-success' : 
+                            calc.status === 'InProgress' ? 'bg-primary' : 
+                            calc.status === 'Failed' ? 'bg-danger' : 
+                            'bg-secondary'
+                          }`}>
+                            {calc.status}
+                          </span>
+                        </td>
+                        <td className="text-end">
+                          <Link
+                            to={`/agreements/${agreement.id}/calculations/${calc.id}`}
+                            className="btn btn-sm btn-outline-primary"
+                          >
+                            View Details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+        )}
+      </div>
 
-          {/* Waterfall Metrics */}
-          {document.WaterfallMetrics && (
-            <div className="card mb-4 shadow-sm">
-              <div className="card-header bg-white">
-                <button
-                  className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-                  onClick={() => toggleSection('metrics')}
-                >
-                  <h5 className="mb-0">
-                    <i className={`bi bi-chevron-${expandedSections.metrics ? 'down' : 'right'} me-2`}></i>
-                    Key Metrics
-                  </h5>
-                </button>
+      {/* Agreement Details Card */}
+      <div className="card mb-4 shadow-sm">
+        <div className="card-header bg-white">
+          <button
+            className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+            onClick={() => toggleSection('details')}
+          >
+            <h5 className="mb-0">
+              <i className={`bi bi-chevron-${expandedSections.details ? 'down' : 'right'} me-2`}></i>
+              Agreement Details
+            </h5>
+          </button>
+        </div>
+        {expandedSections.details && (
+          <div className="card-body">
+            <div className="row g-3">
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">Agreement ID</label>
+                  <div className="fw-medium"><code>{agreement.id}</code></div>
+                </div>
               </div>
-              {expandedSections.metrics && (
-                <div className="card-body">
-                  <div className="row g-4">
-                    <div className="col-md-6 col-lg-3">
-                      <div className="p-3 bg-light rounded text-center">
-                        <div className="text-muted small mb-1">Total Distribution</div>
-                        <h4 className="mb-0 text-primary">
-                          {formatCurrency(document.WaterfallMetrics['Total Distribution'])}
-                        </h4>
-                      </div>
-                    </div>
-                    <div className="col-md-6 col-lg-3">
-                      <div className="p-3 bg-light rounded text-center">
-                        <div className="text-muted small mb-1">Distribution Type</div>
-                        <h5 className="mb-0">{document.WaterfallMetrics['Distribution Type']}</h5>
-                      </div>
-                    </div>
-                    <div className="col-md-6 col-lg-3">
-                      <div className="p-3 bg-light rounded text-center">
-                        <div className="text-muted small mb-1">Number of Steps</div>
-                        <h4 className="mb-0">{document.WaterfallMetrics['Number of Steps']}</h4>
-                      </div>
-                    </div>
-                    <div className="col-md-6 col-lg-3">
-                      <div className="p-3 bg-light rounded text-center">
-                        <div className="text-muted small mb-1">Management Fee</div>
-                        <h4 className="mb-0">{formatPercentage(document.WaterfallMetrics['Management Fee'])}</h4>
-                      </div>
-                    </div>
-                    <div className="col-md-6 col-lg-3">
-                      <div className="p-3 bg-light rounded text-center">
-                        <div className="text-muted small mb-1">Carried Interest</div>
-                        <h4 className="mb-0 text-success">
-                          {formatPercentage(document.WaterfallMetrics['Carried Interest'])}
-                        </h4>
-                      </div>
-                    </div>
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">Status</label>
+                  <div>
+                    <span className={getStatusBadgeClass(agreement.status)}>
+                      {agreement.status || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {agreement.description && (
+                <div className="col-12">
+                  <div className="mb-3">
+                    <label className="text-muted small mb-1">Description</label>
+                    <div>{agreement.description}</div>
+                  </div>
+                </div>
+              )}
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">File Name</label>
+                  <div className="fw-medium">{agreement.file.name}</div>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">File Size</label>
+                  <div>{formatFileSize(agreement.file.size)}</div>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">MIME Type</label>
+                  <div><code>{agreement.file.mimeType || 'N/A'}</code></div>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="mb-3">
+                  <label className="text-muted small mb-1">Uploaded At</label>
+                  <div>{formatDate(agreement.file.uploadedAt)}</div>
+                </div>
+              </div>
+              {agreement.file.uploadedBy && (
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="text-muted small mb-1">Uploaded By</label>
+                    <div>{agreement.file.uploadedBy}</div>
+                  </div>
+                </div>
+              )}
+              {agreement.file.checksum && (
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="text-muted small mb-1">Checksum</label>
+                    <div><code className="small">{agreement.file.checksum}</code></div>
                   </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
-          {/* Waterfall Steps */}
-          {document.WaterfallSteps && document.WaterfallSteps.length > 0 && (
-            <div className="card shadow-sm">
-              <div className="card-header bg-white">
-                <button
-                  className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-                  onClick={() => toggleSection('steps')}
-                >
-                  <h5 className="mb-0">
-                    <i className={`bi bi-chevron-${expandedSections.steps ? 'down' : 'right'} me-2`}></i>
-                    Waterfall Distribution Steps
-                  </h5>
-                </button>
+      {/* Parties Card */}
+      {agreement.parties && agreement.parties.length > 0 && (
+        <div className="card mb-4 shadow-sm">
+          <div className="card-header bg-white">
+            <button
+              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+              onClick={() => toggleSection('parties')}
+            >
+              <h5 className="mb-0">
+                <i className={`bi bi-chevron-${expandedSections.parties ? 'down' : 'right'} me-2`}></i>
+                Parties ({agreement.parties.length})
+              </h5>
+            </button>
+          </div>
+          {expandedSections.parties && (
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Party ID</th>
+                      <th>User ID</th>
+                      <th>Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agreement.parties.map((party: AgreementParty) => (
+                      <tr key={party.id}>
+                        <td><code>{party.id}</code></td>
+                        <td><code>{party.userId}</code></td>
+                        <td>
+                          <span className={getRoleBadgeClass(party.role)}>
+                            {party.role}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              {expandedSections.steps && (
-                <div className="card-body p-0">
-                  <div className="table-responsive">
-                    <table className="table table-hover mb-0">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Step</th>
-                          <th>Description</th>
-                          <th>Threshold</th>
-                          <th className="text-end">LP Split</th>
-                          <th className="text-end">GP Split</th>
-                          <th className="text-end">Amount Distributed</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {document.WaterfallSteps.map((step, index) => (
-                          <tr key={index}>
-                            <td>
-                              <span className="badge bg-primary">{step.StepNumber}</span>
-                            </td>
-                            <td><strong>{step.Description}</strong></td>
-                            <td>{typeof step.Threshold === 'number' ? `${step.Threshold}%` : step.Threshold}</td>
-                            <td className="text-end">
-                              <span className="badge bg-info">{formatPercentage(step.Split.LPs)}</span>
-                            </td>
-                            <td className="text-end">
-                              <span className="badge bg-success">{formatPercentage(step.Split.GP)}</span>
-                            </td>
-                            <td className="text-end">
-                              <strong>{formatCurrency(step['Amount Distributed'])}</strong>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot className="table-light">
-                        <tr>
-                          <th colSpan={5} className="text-end">Total Distribution:</th>
-                          <th className="text-end">
-                            {formatCurrency(
-                              document.WaterfallSteps.reduce((sum, step) => sum + step['Amount Distributed'], 0)
-                            )}
-                          </th>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              )}
             </div>
           )}
-        </>
+        </div>
+      )}
+
+      {/* Commitments Card */}
+      {agreement.commitments && agreement.commitments.length > 0 && (
+        <div className="card mb-4 shadow-sm">
+          <div className="card-header bg-white">
+            <button
+              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+              onClick={() => toggleSection('commitments')}
+            >
+              <h5 className="mb-0">
+                <i className={`bi bi-chevron-${expandedSections.commitments ? 'down' : 'right'} me-2`}></i>
+                Commitments ({agreement.commitments.length})
+              </h5>
+            </button>
+          </div>
+          {expandedSections.commitments && (
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Commitment ID</th>
+                      <th>LP ID</th>
+                      <th className="text-end">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {agreement.commitments.map((commitment: AgreementCommitment) => (
+                      <tr key={commitment.id}>
+                        <td><code>{commitment.id}</code></td>
+                        <td><code>{commitment.lpId}</code></td>
+                        <td className="text-end">
+                          <strong>{formatCurrency(commitment.amount.amount, commitment.amount.currency)}</strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="table-light">
+                    <tr>
+                      <th colSpan={2} className="text-end">Total Commitments:</th>
+                      <th className="text-end">
+                        {formatCurrency(
+                          agreement.commitments.reduce((sum, c) => sum + c.amount.amount, 0),
+                          agreement.commitments[0]?.amount.currency || 'USD'
+                        )}
+                      </th>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Metadata Card */}
+      {agreement.metadata && Object.keys(agreement.metadata).length > 0 && (
+        <div className="card mb-4 shadow-sm">
+          <div className="card-header bg-white">
+            <button
+              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
+              onClick={() => toggleSection('metadata')}
+            >
+              <h5 className="mb-0">
+                <i className={`bi bi-chevron-${expandedSections.metadata ? 'down' : 'right'} me-2`}></i>
+                Metadata
+              </h5>
+            </button>
+          </div>
+          {expandedSections.metadata && (
+            <div className="card-body">
+              <div className="row g-3">
+                {Object.entries(agreement.metadata).map(([key, value]) => (
+                  <div className="col-md-6" key={key}>
+                    <div className="mb-2">
+                      <label className="text-muted small mb-1">{key}</label>
+                      <div className="fw-medium">
+                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Action Buttons */}
@@ -400,7 +631,7 @@ const AgreementDetails: React.FC = () => {
         </Link>
         <Link to="/upload" className="btn btn-outline-primary">
           <i className="bi bi-upload me-1"></i>
-          Upload New Document
+          Upload New Agreement
         </Link>
       </div>
     </Layout>
