@@ -2,8 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/auth/ProtectedRoute';
-import Upload from './components/upload/Upload';
-import Results from './components/results/Results';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import {
@@ -86,22 +84,6 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <CreateCalculation />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/upload"
-            element={
-              <ProtectedRoute>
-                <Upload />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/results"
-            element={
-              <ProtectedRoute>
-                <Results />
               </ProtectedRoute>
             }
           />
