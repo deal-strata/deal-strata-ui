@@ -24,7 +24,7 @@ import './App.css'
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/deal-strata-ui">
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
