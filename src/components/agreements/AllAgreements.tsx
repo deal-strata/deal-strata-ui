@@ -20,6 +20,16 @@ import type {
 } from 'deal-strata-client';
 
 const AllAgreements: React.FC = () => {
+  // Inject Playfair Display font from Google Fonts
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, []);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -163,12 +173,12 @@ const AllAgreements: React.FC = () => {
     <Layout>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="mb-1">All Agreements-test</h2>
+          <h2 className="mb-1" style={{ fontFamily: 'Playfair Display, serif', color: '#46BDC6', fontWeight: 700, fontSize: '2rem', letterSpacing: '1px' }}>All Agreements</h2>
           <p className="text-muted mb-0">
             Showing {agreements.length} of {total} agreements
           </p>
         </div>
-        <Link to="/upload" className="btn btn-primary">
+        <Link to="/upload" className="btn btn-primary" style={{ backgroundColor: '#46BDC6', border: 'none' }}>
           + Upload New Agreement
         </Link>
       </div>
@@ -197,76 +207,59 @@ const AllAgreements: React.FC = () => {
         </div>
       </div>
 
-      {/* Agreements Table */}
+      {/* Agreements as Cards */}
       {agreements.length === 0 ? (
         <div className="card">
           <div className="card-body text-center py-5">
             <p className="text-muted mb-3">No agreements found.</p>
-            <Link to="/upload" className="btn btn-primary">
+            <Link to="/upload" className="btn btn-primary" style={{ backgroundColor: '#46BDC6', border: 'none' }}>
               Upload Your First Agreement
             </Link>
           </div>
         </div>
       ) : (
         <>
-          <div className="card">
-            <div className="table-responsive">
-              <table className="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>File</th>
-                    <th>Status</th>
-                    <th>Updated</th>
-                    <th>Parties</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {agreements.map((agreement: Agreement) => (
-                    <tr key={agreement.id}>
-                      <td>
-                        <strong>{agreement.title}</strong>
-                        {agreement.description && (
-                          <div className="text-muted small">{agreement.description}</div>
-                        )}
-                      </td>
-                      <td>
-                        <div>{agreement.file.name}</div>
-                        <div className="text-muted small">
-                          {formatFileSize(agreement.file.size)}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={getStatusBadgeClass(agreement.status)}>
-                          {agreement.status || 'Unknown'}
+          <div className="row g-4">
+            {agreements.map((agreement: Agreement) => (
+              <div className="col-md-6 col-lg-4" key={agreement.id}>
+                <div className="card h-100 shadow-sm" style={{ borderRadius: '16px', border: '1px solid #46BDC6' }}>
+                  <div className="card-body d-flex flex-column">
+                    <h5 className="card-title mb-2" style={{ fontFamily: 'Playfair Display, serif', color: '#46BDC6', fontWeight: 600, letterSpacing: '0.5px' }}>{agreement.title}</h5>
+                    {agreement.description && (
+                      <p className="card-text text-muted mb-2" style={{ minHeight: '32px' }}>{agreement.description}</p>
+                    )}
+                    <div className="mb-2">
+                      <strong>File:</strong> {agreement.file.name}
+                      <span className="text-muted small ms-2">{formatFileSize(agreement.file.size)}</span>
+                    </div>
+                    <div className="mb-2">
+                      <strong>Status:</strong> <span className={getStatusBadgeClass(agreement.status)}>{agreement.status || 'Unknown'}</span>
+                    </div>
+                    <div className="mb-2 text-muted small">
+                      <strong>Updated:</strong> {formatDate(agreement.updatedAt)}
+                    </div>
+                    <div className="mb-2">
+                      <strong>Parties:</strong> {agreement.parties && agreement.parties.length > 0 ? (
+                        <span className="badge bg-light text-dark ms-1">
+                          {agreement.parties.length} {agreement.parties.length === 1 ? 'party' : 'parties'}
                         </span>
-                      </td>
-                      <td className="text-muted small">
-                        {formatDate(agreement.updatedAt)}
-                      </td>
-                      <td>
-                        {agreement.parties && agreement.parties.length > 0 ? (
-                          <span className="badge bg-light text-dark">
-                            {agreement.parties.length} {agreement.parties.length === 1 ? 'party' : 'parties'}
-                          </span>
-                        ) : (
-                          <span className="text-muted">-</span>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleViewAgreement(agreement.id)}
-                        >
-                          View Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        <span className="text-muted ms-1">-</span>
+                      )}
+                    </div>
+                    <div className="mt-auto">
+                      <button
+                        className="btn btn-outline-primary w-100"
+                        style={{ borderColor: '#46BDC6', color: '#46BDC6' }}
+                        onClick={() => handleViewAgreement(agreement.id)}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Pagination */}

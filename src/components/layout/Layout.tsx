@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import fundintelLogo from '../../assets/FundIntel.jpeg';
@@ -8,8 +8,18 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  // Inject Pacifico font from Google Fonts
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.href = 'https://fonts.googleapis.com/css2?family=Pacifico&display=swap';
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, []);
   const currentYear = new Date().getFullYear();
-  const appName = "FinLucentra";
+  const appName = "Fund Intel";
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -21,7 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-vh-100 d-flex flex-column">
       {/* Navbar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+  <nav className="navbar navbar-expand-lg" style={{ backgroundColor: '#46BDC6' }}>
         <div className="container-fluid">
           <Link className="navbar-brand d-flex align-items-center" to="/">
             <img
@@ -31,7 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               height={32}
               style={{ marginRight: '8px', objectFit: 'cover', borderRadius: '4px' }}
             />
-            {appName}
+            <span style={{ fontFamily: 'Pacifico, cursive', fontSize: '1.7rem', color: '#fff' }}>{appName}</span>
           </Link>
           <button 
             className="navbar-toggler" 
