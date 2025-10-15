@@ -163,7 +163,7 @@ const AllAgreements: React.FC = () => {
     <Layout>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="mb-1">All Agreements</h2>
+          <h2 className="mb-1">All Agreements-test</h2>
           <p className="text-muted mb-0">
             Showing {agreements.length} of {total} agreements
           </p>
