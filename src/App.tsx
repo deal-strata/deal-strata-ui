@@ -9,6 +9,7 @@ import {
   AgreementDetails,
   EditAgreement,
 } from './components/agreements';
+import UploadAgreement from './components/agreements/UploadAgreement';
 import {
   WaterfallDetails,
 } from './components/waterfall';
@@ -84,6 +85,14 @@ const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <CreateCalculation />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/upload"
+            element={
+              <ProtectedRoute>
+                <UploadAgreement />
               </ProtectedRoute>
             }
           />
