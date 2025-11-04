@@ -44,8 +44,12 @@ const UploadAgreement: React.FC = () => {
     }
     setUploading(true);
     try {
-      // agreementApi.createAgreement expects (file, title?, description?, dealId?, metadata?) per client
-      const resp: any = await agreementApi.createAgreement(file, title || undefined, description || undefined);
+      // agreementApi.createAgreement expects a single object: { file, title?, description?, dealId?, metadata? }
+      const resp: any = await agreementApi.createAgreement({
+        file,
+        title: title || undefined,
+        description: description || undefined,
+      });
       const data = resp?.data || resp;
       // Try to find an id/documentId in the response
       const documentId = data?.documentId || data?.id || data?.agreementId || data?.agreement?.id;

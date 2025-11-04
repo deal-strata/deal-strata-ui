@@ -16,12 +16,14 @@ const getAuthToken = (): string => {
  * Base configuration for all API clients
  */
 const apiConfiguration = new Configuration({
-  basePath: 'https://atzhome.tail18537f.ts.net',
+  // basePath: 'https://atzhome.tail18537f.ts.net',
+  basePath: 'http://localhost:8080/v1',
   accessToken: getAuthToken,
   baseOptions: {
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    // Do not set a global Content-Type header.
+    // The generated client assigns the correct Content-Type per request
+    // (e.g., multipart/form-data for uploads, application/json for JSON bodies).
+    headers: {},
   },
 });
 
