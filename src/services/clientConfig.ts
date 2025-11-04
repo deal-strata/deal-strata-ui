@@ -17,7 +17,8 @@ const getAuthToken = (): string => {
  */
 const apiConfiguration = new Configuration({
   // basePath: 'https://atzhome.tail18537f.ts.net',
-  basePath: 'http://localhost:8080/v1',
+  // basePath: 'http://localhost:8080/v1',
+  basePath: 'http://localhost:4010',
   accessToken: getAuthToken,
   baseOptions: {
     // Do not set a global Content-Type header.

@@ -20,16 +20,6 @@ import type {
 } from 'deal-strata-client';
 
 const AllAgreements: React.FC = () => {
-  // Inject Playfair Display font from Google Fonts
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-    return () => {
-      document.head.removeChild(link);
-    };
-  }, []);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);

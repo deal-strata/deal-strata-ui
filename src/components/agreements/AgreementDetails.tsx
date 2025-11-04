@@ -386,16 +386,6 @@ const AgreementDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Waterfall Summary (3-4 lines) */}
-      <div className="card mb-4 shadow-sm">
-        <div className="card-body">
-          <h5 style={{ fontFamily: 'Playfair Display, serif', color: '#46BDC6' }}>Waterfall Summary</h5>
-          <p className="text-muted mb-0">
-            {agreement.WaterfallSummary || agreement.waterfallSummary || agreement.metadata?.WaterfallSummary || 'No waterfall summary available.'}
-          </p>
-        </div>
-      </div>
-
       {/* Waterfall Steps Table for primary waterfall */}
       {primaryWaterfall && primaryWaterfall.steps && primaryWaterfall.steps.length > 0 && (
         <div className="card mb-4 shadow-sm">
