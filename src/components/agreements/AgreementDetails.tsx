@@ -7,8 +7,6 @@ import {
   type AgreementApiGetCalculationsRequest,
   type Agreement,
   type AgreementStatus,
-  type AgreementParty,
-  type AgreementCommitment,
   type Calculation,
   SourceType,
 } from 'deal-strata-client';
@@ -20,6 +18,9 @@ const AgreementDetails: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingCalculations, setLoadingCalculations] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [stepModalOpen, setStepModalOpen] = useState<boolean>(false);
+  const [modalStepDetails, setModalStepDetails] = useState<any>(null);
+  const [modalStepTitle, setModalStepTitle] = useState<string>('');
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     details: true,
     waterfalls: true,
@@ -113,22 +114,6 @@ const AgreementDetails: React.FC = () => {
     });
   };
 
-  const formatCurrency = (amount: number, currency: string = 'USD'): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
 
   const getStatusBadgeClass = (status?: AgreementStatus): string => {
     switch (status) {
@@ -149,9 +134,7 @@ const AgreementDetails: React.FC = () => {
     }
   };
 
-  const getRoleBadgeClass = (role: string): string => {
-    return role === 'LP' ? 'badge bg-info' : 'badge bg-success';
-  };
+  // Removed unused helpers (formatCurrency, formatFileSize, getRoleBadgeClass)
 
   if (loading) {
     return (
@@ -175,11 +158,15 @@ const AgreementDetails: React.FC = () => {
           <h4 className="alert-heading">Error Loading Agreement</h4>
           <p>{error || 'Agreement not found'}</p>
           <hr />
-          <div className="d-flex gap-2">
-            <button className="btn btn-outline-danger" onClick={() => id && loadAgreement(id)}>
+            <div className="d-flex gap-2">
+          <button className="btn btn-outline-danger" onClick={() => id && loadAgreement(id)}>
               Try Again
             </button>
-            <Link to="/agreements" className="btn btn-outline-secondary">
+            <Link
+              to="/agreements"
+              className="btn"
+              style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }}
+            >
               Back to All Agreements
             </Link>
           </div>
@@ -189,6 +176,70 @@ const AgreementDetails: React.FC = () => {
   }
   
   const displayedWaterfalls = agreement.waterfalls?.slice(0, 2);
+  const primaryWaterfall = agreement.waterfalls && agreement.waterfalls.length > 0 ? agreement.waterfalls[0] : null;
+
+  const formatStepType = (stepType: string): string => {
+    const typeMap: Record<string, string> = {
+      'ReturnOfCapital': 'Return of Capital',
+      'PreferredRateHurdle': 'Preferred Rate Hurdle',
+      'GPCatchUp': 'GP Catch-Up',
+      'CarrySplit': 'Carry Split',
+    };
+    return typeMap[stepType] || (stepType || '').toString().replace(/([A-Z])/g, ' $1').trim();
+  };
+
+  const openStepModal = (step: any) => {
+    setModalStepTitle(step.name || formatStepType(step.stepType) || `Step ${step.orderNumber || ''}`);
+    setModalStepDetails(step.stepDetails || step.metrics || step);
+    setStepModalOpen(true);
+  };
+
+  // Render details object/array in tabular form for business-friendly display
+  const renderDetailsTable = (data: any, level = 0): any => {
+    if (data == null) {
+      return <div className="text-muted">No details available</div>;
+    }
+
+    if (typeof data !== 'object') {
+      return <div>{String(data)}</div>;
+    }
+
+    if (Array.isArray(data)) {
+      return (
+        <table className="table table-sm table-bordered mb-0">
+          <thead className="table-light"><tr><th style={{width: '60px'}}>#</th><th>Value</th></tr></thead>
+          <tbody>
+            {data.map((item: any, i: number) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>{typeof item === 'object' ? renderDetailsTable(item, level + 1) : String(item)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      );
+    }
+
+    // Object
+    return (
+      <table className="table table-sm table-bordered mb-0">
+        <tbody>
+          {Object.entries(data).map(([k, v]) => (
+            <tr key={k}>
+              <th style={{ width: '220px', verticalAlign: 'top' }}>{k}</th>
+              <td>{typeof v === 'object' && v !== null ? renderDetailsTable(v, level + 1) : String(v)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  const closeStepModal = () => {
+    setStepModalOpen(false);
+    setModalStepDetails(null);
+    setModalStepTitle('');
+  };
 
   const waterfallSection = (
     <div className="card mb-4 shadow-sm">
@@ -206,7 +257,7 @@ const AgreementDetails: React.FC = () => {
       {expandedSections.waterfalls && (
         <div className="card-body">
           <div className="row g-3">
-              {displayedWaterfalls?.map((waterfall) => (
+              {displayedWaterfalls?.map((waterfall: any) => (
               <div key={waterfall.id} className="col-md-6">
                 <div className="card hover-shadow">
                   <div className="card-body">
@@ -223,7 +274,8 @@ const AgreementDetails: React.FC = () => {
                       <div>
                         <Link
                           to={`/agreements/${agreement.id}/waterfalls/${waterfall.id}`}
-                          className="btn btn-sm btn-outline-primary"
+                          className="btn btn-sm"
+                          style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }}
                         >
                           View Details
                         </Link>
@@ -233,6 +285,7 @@ const AgreementDetails: React.FC = () => {
                 </div>
               </div>
             ))}
+              {/* ...existing code... */}
           </div>
           <div className="mt-3 text-muted small">
             <i className="bi bi-info-circle me-1"></i>
@@ -280,7 +333,8 @@ const AgreementDetails: React.FC = () => {
         <div className="d-flex gap-2">
           <Link
             to={`/agreements/${agreement.id}/edit`}
-            className="btn btn-primary"
+            className="btn"
+            style={{ backgroundColor: '#46BDC6', borderColor: '#46BDC6', color: '#fff' }}
           >
             <i className="bi bi-pencil me-1"></i>
             Update Agreement
@@ -289,7 +343,8 @@ const AgreementDetails: React.FC = () => {
             href={agreement.file.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-outline-secondary"
+            className="btn"
+            style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }}
           >
             <i className="bi bi-download me-1"></i>
             Download File
@@ -302,6 +357,71 @@ const AgreementDetails: React.FC = () => {
         <div className="alert alert-warning" role="alert">
           <i className="bi bi-hourglass-split me-2"></i>
           This agreement is currently being processed. Full details will be available once processing is complete.
+        </div>
+      )}
+
+      {/* Top Info Table: Deal code, description, fund name, fund date (simplified) */}
+      <div className="card mb-4 shadow-sm">
+        <div className="card-body">
+          <div className="table-responsive">
+            <table className="table table-borderless mb-0">
+              <tbody>
+                <tr>
+                  <th style={{ width: '180px' }}>Deal Code</th>
+                  <td>{agreement.dealId || 'N/A'}</td>
+                  <th style={{ width: '180px' }}>Fund Name</th>
+                  <td>{agreement.file?.name || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <th>Description</th>
+                  <td colSpan={3}>{agreement.description || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <th>Fund Date</th>
+                  <td colSpan={3}>{formatDate(agreement.file?.uploadedAt)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Waterfall Steps Table for primary waterfall */}
+      {primaryWaterfall && primaryWaterfall.steps && primaryWaterfall.steps.length > 0 && (
+        <div className="card mb-4 shadow-sm">
+          <div className="card-header bg-white">
+            <h5 className="mb-0">Waterfall Steps</h5>
+          </div>
+          <div className="card-body p-0">
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th style={{ width: '60px' }}>Order</th>
+                    <th>Step Name</th>
+                    <th>Description</th>
+                    <th>Section</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {primaryWaterfall.steps.map((step: any, idx: number) => (
+                    <tr key={step.id || idx}>
+                      <td>{step.orderNumber ?? (idx + 1)}</td>
+                      <td className="fw-medium">{step.name || formatStepType(step.stepType)}</td>
+                      <td className="text-muted small">{step.description || step.notes || (step.stepDetails && step.stepDetails.notes) || '—'}</td>
+                      <td className="text-muted small">{step.sourceSection || step.section || step.sourceRef || 'N/A'}</td>
+                        <td className="text-end">
+                          <button className="btn btn-sm" style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }} onClick={() => openStepModal(step)}>
+                            Details
+                          </button>
+                        </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -320,10 +440,11 @@ const AgreementDetails: React.FC = () => {
               Calculations ({calculations.length})
             </h5>
           </button>
-          {expandedSections.calculations && (
+            {expandedSections.calculations && (
             <Link
               to={`/agreements/${agreement.id}/calculations/new`}
-              className="btn btn-sm btn-primary"
+              className="btn btn-sm"
+              style={{ backgroundColor: '#46BDC6', borderColor: '#46BDC6', color: '#fff' }}
             >
               <i className="bi bi-plus-circle me-1"></i>
               Add Calculation
@@ -340,12 +461,13 @@ const AgreementDetails: React.FC = () => {
                 <p className="mt-2 text-muted">Loading calculations...</p>
               </div>
             ) : calculations.length === 0 ? (
-              <div className="p-4 text-center text-muted">
+                <div className="p-4 text-center text-muted">
                 <i className="bi bi-calculator" style={{ fontSize: '2rem' }}></i>
                 <p className="mb-3">No calculations yet</p>
                 <Link
                   to={`/agreements/${agreement.id}/calculations/new`}
-                  className="btn btn-primary"
+                  className="btn"
+                  style={{ backgroundColor: '#46BDC6', borderColor: '#46BDC6', color: '#fff' }}
                 >
                   <i className="bi bi-plus-circle me-1"></i>
                   Create First Calculation
@@ -391,7 +513,8 @@ const AgreementDetails: React.FC = () => {
                         <td className="text-end">
                           <Link
                             to={`/agreements/${agreement.id}/calculations/${calc.id}`}
-                            className="btn btn-sm btn-outline-primary"
+                            className="btn btn-sm"
+                            style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }}
                           >
                             View Details
                           </Link>
@@ -406,234 +529,62 @@ const AgreementDetails: React.FC = () => {
         )}
       </div>
 
-      {/* Agreement Details Card */}
-      <div className="card mb-4 shadow-sm">
-        <div className="card-header bg-white">
-          <button
-            className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-            onClick={() => toggleSection('details')}
-          >
-            <h5 className="mb-0">
-              <i className={`bi bi-chevron-${expandedSections.details ? 'down' : 'right'} me-2`}></i>
-              Agreement Details
-            </h5>
-          </button>
-        </div>
-        {expandedSections.details && (
-          <div className="card-body">
-            <div className="row g-3">
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">Agreement ID</label>
-                  <div className="fw-medium"><code>{agreement.id}</code></div>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">Status</label>
-                  <div>
-                    <span className={getStatusBadgeClass(agreement.status)}>
-                      {agreement.status || 'Unknown'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              {agreement.description && (
-                <div className="col-12">
-                  <div className="mb-3">
-                    <label className="text-muted small mb-1">Description</label>
-                    <div>{agreement.description}</div>
-                  </div>
-                </div>
-              )}
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">File Name</label>
-                  <div className="fw-medium">{agreement.file.name}</div>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">File Size</label>
-                  <div>{formatFileSize(agreement.file.size)}</div>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">MIME Type</label>
-                  <div><code>{agreement.file.mimeType || 'N/A'}</code></div>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="mb-3">
-                  <label className="text-muted small mb-1">Uploaded At</label>
-                  <div>{formatDate(agreement.file.uploadedAt)}</div>
-                </div>
-              </div>
-              {agreement.file.uploadedBy && (
-                <div className="col-md-6">
-                  <div className="mb-3">
-                    <label className="text-muted small mb-1">Uploaded By</label>
-                    <div>{agreement.file.uploadedBy}</div>
-                  </div>
-                </div>
-              )}
-              {agreement.file.checksum && (
-                <div className="col-md-6">
-                  <div className="mb-3">
-                    <label className="text-muted small mb-1">Checksum</label>
-                    <div><code className="small">{agreement.file.checksum}</code></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Agreement Details removed per request */}
 
-      {/* Parties Card */}
-      {agreement.parties && agreement.parties.length > 0 && (
-        <div className="card mb-4 shadow-sm">
-          <div className="card-header bg-white">
-            <button
-              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-              onClick={() => toggleSection('parties')}
-            >
-              <h5 className="mb-0">
-                <i className={`bi bi-chevron-${expandedSections.parties ? 'down' : 'right'} me-2`}></i>
-                Parties ({agreement.parties.length})
-              </h5>
-            </button>
-          </div>
-          {expandedSections.parties && (
-            <div className="card-body p-0">
-              <div className="table-responsive">
-                <table className="table table-hover mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Party ID</th>
-                      <th>User ID</th>
-                      <th>Role</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agreement.parties.map((party: AgreementParty) => (
-                      <tr key={party.id}>
-                        <td><code>{party.id}</code></td>
-                        <td><code>{party.userId}</code></td>
-                        <td>
-                          <span className={getRoleBadgeClass(party.role)}>
-                            {party.role}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Parties section removed per request */}
 
-      {/* Commitments Card */}
-      {agreement.commitments && agreement.commitments.length > 0 && (
-        <div className="card mb-4 shadow-sm">
-          <div className="card-header bg-white">
-            <button
-              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-              onClick={() => toggleSection('commitments')}
-            >
-              <h5 className="mb-0">
-                <i className={`bi bi-chevron-${expandedSections.commitments ? 'down' : 'right'} me-2`}></i>
-                Commitments ({agreement.commitments.length})
-              </h5>
-            </button>
-          </div>
-          {expandedSections.commitments && (
-            <div className="card-body p-0">
-              <div className="table-responsive">
-                <table className="table table-hover mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th>Commitment ID</th>
-                      <th>LP ID</th>
-                      <th className="text-end">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agreement.commitments.map((commitment: AgreementCommitment) => (
-                      <tr key={commitment.id}>
-                        <td><code>{commitment.id}</code></td>
-                        <td><code>{commitment.lpId}</code></td>
-                        <td className="text-end">
-                          <strong>{formatCurrency(commitment.amount.amount, commitment.amount.currency)}</strong>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="table-light">
-                    <tr>
-                      <th colSpan={2} className="text-end">Total Commitments:</th>
-                      <th className="text-end">
-                        {formatCurrency(
-                          agreement.commitments.reduce((sum, c) => sum + c.amount.amount, 0),
-                          agreement.commitments[0]?.amount.currency || 'USD'
-                        )}
-                      </th>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Commitments section removed per request */}
 
-      {/* Metadata Card */}
-      {agreement.metadata && Object.keys(agreement.metadata).length > 0 && (
-        <div className="card mb-4 shadow-sm">
-          <div className="card-header bg-white">
-            <button
-              className="btn btn-link text-decoration-none text-dark w-100 text-start p-0"
-              onClick={() => toggleSection('metadata')}
-            >
-              <h5 className="mb-0">
-                <i className={`bi bi-chevron-${expandedSections.metadata ? 'down' : 'right'} me-2`}></i>
-                Metadata
-              </h5>
-            </button>
-          </div>
-          {expandedSections.metadata && (
-            <div className="card-body">
-              <div className="row g-3">
-                {Object.entries(agreement.metadata).map(([key, value]) => (
-                  <div className="col-md-6" key={key}>
-                    <div className="mb-2">
-                      <label className="text-muted small mb-1">{key}</label>
-                      <div className="fw-medium">
-                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Metadata removed per request */}
 
       {/* Action Buttons */}
       <div className="mt-4 d-flex gap-2">
-        <Link to="/agreements" className="btn btn-outline-secondary">
+        <Link
+          to="/agreements"
+          className="btn"
+          style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }}
+        >
           <i className="bi bi-arrow-left me-1"></i>
           Back to All Agreements
         </Link>
-        <Link to="/upload" className="btn btn-outline-primary">
+        <Link
+          to="/upload"
+          className="btn"
+          style={{ backgroundColor: '#46BDC6', borderColor: '#46BDC6', color: '#fff' }}
+        >
           <i className="bi bi-upload me-1"></i>
           Upload New Agreement
         </Link>
       </div>
+
+      {/* Step Details Modal (simple Bootstrap-like modal controlled by state) */}
+      {stepModalOpen && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.4)' }} tabIndex={-1} role="dialog">
+          <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">{modalStepTitle}</h5>
+                <button type="button" className="btn-close" aria-label="Close" onClick={closeStepModal}></button>
+              </div>
+              <div className="modal-body">
+                {modalStepDetails ? (
+                  <div>
+                    <h6 className="mb-2">Metrics / Details</h6>
+                    <div className="mb-3">
+                      {renderDetailsTable(modalStepDetails)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted">No details available for this step.</div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn" style={{ borderColor: '#46BDC6', color: '#46BDC6', borderStyle: 'solid', borderWidth: '1px' }} onClick={closeStepModal}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
